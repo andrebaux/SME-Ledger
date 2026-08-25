@@ -3,7 +3,7 @@ import {
   Fuel, Home as HomeIcon, Zap, Users, Package, Wrench, ShieldCheck, Megaphone,
   Scale, Landmark, Receipt, MoreHorizontal, Plus, ArrowLeft, Trash2,
   TrendingUp, TrendingDown, Wallet, BookOpen, ChevronRight, AlertTriangle,
-  Minus, Link2, CalendarDays, Layers, LogOut, Mail, Lock
+  Minus, Link2, CalendarDays, Layers, LogOut, Mail, Lock, ChefHat, X
 } from "lucide-react";
 import {
   getSession, onAuthStateChange, signInWithPassword, signUpWithPassword,
@@ -13,12 +13,12 @@ import {
 const CURRENCIES = ["$", "€", "£", "₦", "₹", "R", "KSh"];
 
 const EXPENSE_CATEGORIES = [
-  { id: "fuel", label: "Fuel & transport", icon: Fuel, hint: "Petrol, diesel, mileage, parking, tolls" },
-  { id: "rent", label: "Rent & premises", icon: HomeIcon, hint: "Shop, office, storage or venue hire" },
+  { id: "fuel", label: "Fuel & delivery", icon: Fuel, hint: "Petrol, diesel, delivery mileage, parking, tolls" },
+  { id: "rent", label: "Rent & premises", icon: HomeIcon, hint: "Kitchen, stall, storage or venue hire" },
   { id: "utilities", label: "Utilities", icon: Zap, hint: "Electricity, water, gas, internet, phone" },
   { id: "wages", label: "Salaries & wages", icon: Users, hint: "Staff pay, contractors, casual labour" },
-  { id: "supplies", label: "Supplies & inventory", icon: Package, hint: "Stock, raw materials, packaging, food" },
-  { id: "maintenance", label: "Equipment & maintenance", icon: Wrench, hint: "Repairs, tools, servicing" },
+  { id: "supplies", label: "Ingredients & packaging", icon: Package, hint: "Raw ingredients, packaging, takeout containers" },
+  { id: "maintenance", label: "Equipment & maintenance", icon: Wrench, hint: "Repairs to fridges, ovens, stalls, tools" },
   { id: "insurance", label: "Insurance", icon: ShieldCheck, hint: "Business, vehicle or liability cover" },
   { id: "marketing", label: "Marketing & advertising", icon: Megaphone, hint: "Ads, flyers, social promotion" },
   { id: "fees", label: "Professional & legal fees", icon: Scale, hint: "Accountant, lawyer, consultant" },
@@ -31,11 +31,28 @@ const PAYMENTS = ["Cash", "Card", "Transfer", "Mobile money"];
 const UNITS = ["pcs", "kg", "g", "L", "ml", "box", "pack"];
 
 const BACK_TARGET = {
-  ledger: "home", sales: "home", inventory: "home", expenses: "home", events: "home",
+  ledger: "home", sales: "home", inventory: "home", expenses: "home", events: "home", recipes: "home",
   addSale: "sales", addDailyTotal: "sales", addExpense: "expenses", addItem: "inventory",
-  addEvent: "events", eventDetail: "events",
+  addEvent: "events", eventDetail: "events", addRecipe: "recipes",
   addEventIncome: "eventDetail", addEventExpense: "eventDetail",
 };
+
+function recipeStats(recipe, inventory) {
+  let cost = 0;
+  let maxMakeable = null;
+  let limiting = null;
+  let missing = false;
+  for (const ing of recipe.ingredients || []) {
+    const item = inventory.find((i) => i.id === ing.itemId);
+    if (!item) { missing = true; continue; }
+    cost += ing.qty * (item.costPrice || 0);
+    if (ing.qty > 0) {
+      const possible = Math.floor(item.quantity / ing.qty);
+      if (maxMakeable === null || possible < maxMakeable) { maxMakeable = possible; limiting = item.name; }
+    }
+  }
+  return { cost, maxMakeable, limiting, missing };
+}
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function fmtDate(d) {
@@ -50,6 +67,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [events, setEvents] = useState([]);
+  const [recipes, setRecipes] = useState([]);
   const [currency, setCurrency] = useState("$");
   const [view, setView] = useState("home");
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -72,6 +90,7 @@ export default function App() {
       setTransactions(data?.transactions || []);
       setInventory(data?.inventory || []);
       setEvents(data?.events || []);
+      setRecipes(data?.recipes || []);
       setCurrency(data?.currency || "$");
       setLoaded(true);
       setBooting(false);
@@ -81,10 +100,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded || !userId) return;
     const t = setTimeout(() => {
-      saveData(userId, { transactions, inventory, events, currency });
+      saveData(userId, { transactions, inventory, events, recipes, currency });
     }, 400); // debounce so rapid edits don't spam the database
     return () => clearTimeout(t);
-  }, [transactions, inventory, events, currency, loaded, userId]);
+  }, [transactions, inventory, events, recipes, currency, loaded, userId]);
 
   async function handleSignOut() {
     setLoaded(false);
@@ -127,12 +146,15 @@ export default function App() {
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setView("events");
   }
+  function addRecipe(recipe) { setRecipes((prev) => [{ ...recipe, id: uid() }, ...prev]); setView("recipes"); }
+  function deleteRecipe(id) { setRecipes((prev) => prev.filter((r) => r.id !== id)); }
 
   const fmt = (n) => `${currency}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (session === undefined) {
     return (
-      <div style={styles.phone}>
+      <div style={styles.phone} className="phone-shell">
+        <style>{`.phone-shell { height: 100vh; height: 100dvh; }`}</style>
         <div style={styles.bootWrap}>
           <BookOpen size={26} color="#B08D57" />
         </div>
@@ -146,7 +168,8 @@ export default function App() {
 
   if (booting) {
     return (
-      <div style={styles.phone}>
+      <div style={styles.phone} className="phone-shell">
+        <style>{`.phone-shell { height: 100vh; height: 100dvh; }`}</style>
         <div style={styles.bootWrap}>
           <BookOpen size={26} color="#B08D57" />
           <div style={styles.bootText}>Loading your ledger…</div>
@@ -156,17 +179,19 @@ export default function App() {
   }
 
   const titles = {
-    home: "Workspace", ledger: "Ledger", sales: "Sales", inventory: "Inventory", expenses: "Expenses",
-    events: "Events", addSale: "New sale", addDailyTotal: "Day's total sales", addExpense: "New expense",
-    addItem: "New item", addEvent: "New event", eventDetail: selectedEvent?.name || "Event",
+    home: "Workspace", ledger: "Ledger", sales: "Sales", inventory: "Ingredients", expenses: "Expenses",
+    events: "Events", recipes: "Recipes", addSale: "New sale", addDailyTotal: "Day's total sales", addExpense: "New expense",
+    addItem: "New ingredient", addEvent: "New event", addRecipe: "New recipe", eventDetail: selectedEvent?.name || "Event",
     addEventIncome: "Event income", addEventExpense: "Event cost",
   };
 
   return (
-    <div style={styles.phone}>
+    <div style={styles.phone} className="phone-shell">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        .phone-shell { height: 100vh; height: 100dvh; }
+        .ledger-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .ledger-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
@@ -198,6 +223,12 @@ export default function App() {
           <EventsList events={events} transactions={transactions} fmt={fmt} setView={setView}
             onOpen={(id) => { setSelectedEventId(id); setView("eventDetail"); }} />
         )}
+        {view === "recipes" && (
+          <RecipesList recipes={recipes} inventory={inventory} fmt={fmt} setView={setView} onDelete={deleteRecipe} />
+        )}
+        {view === "addRecipe" && (
+          <AddRecipe inventory={inventory} onSave={addRecipe} />
+        )}
         {view === "eventDetail" && selectedEvent && (
           <EventDetail event={selectedEvent} transactions={eventTxns} fmt={fmt} setView={setView}
             onDeleteTxn={deleteTransaction} onDeleteEvent={() => deleteEvent(selectedEvent.id)} />
@@ -228,6 +259,13 @@ export default function App() {
           <AddExpense eventContext={selectedEvent} onSave={(tx) => { addTransaction(tx); setView("eventDetail"); }} />
         )}
       </div>
+
+      {view !== "home" && (
+        <button style={styles.bottomBar} onClick={() => setView("home")}>
+          <HomeIcon size={16} color="#B08D57" />
+          <span>Home</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -267,10 +305,11 @@ function AuthScreen() {
   }
 
   return (
-    <div style={styles.phone}>
+    <div style={styles.phone} className="phone-shell">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        .phone-shell { height: 100vh; height: 100dvh; }
       `}</style>
       <div style={styles.onboardWrap}>
         <div style={styles.brandLarge}><BookOpen size={26} color="#B08D57" /></div>
@@ -362,9 +401,10 @@ function HomeGrid({ setView, lowStockCount, eventsCount, totals, fmt, email, onS
   const tiles = [
     { id: "ledger", label: "Ledger", icon: Wallet, bg: "#B08D57" },
     { id: "sales", label: "Sales", icon: TrendingUp, bg: "#2F6B4F" },
-    { id: "inventory", label: "Inventory", icon: Package, bg: "#C98A2B", badge: lowStockCount },
+    { id: "inventory", label: "Ingredients", icon: Package, bg: "#C98A2B", badge: lowStockCount },
     { id: "expenses", label: "Expenses", icon: TrendingDown, bg: "#A13D2E" },
     { id: "events", label: "Events", icon: CalendarDays, bg: "#4C5E8A", count: eventsCount },
+    { id: "recipes", label: "Recipes", icon: ChefHat, bg: "#8A5A9E" },
   ];
 
   return (
@@ -542,8 +582,8 @@ function ExpensesList({ transactions, fmt, onDelete, setView }) {
 }
 
 function AddRowButton({ label, tone, onClick, icon, full }) {
-  const colors = { green: "#2F6B4F", red: "#A13D2E", amber: "#B08D57", brass: "#8A6A2F", teal: "#3E6B67" };
-  const bgs = { green: "#EAF1EC", red: "#F6EAE7", amber: "#F3E9D8", brass: "#F1EAD8", teal: "#E5EFED" };
+  const colors = { green: "#2F6B4F", red: "#A13D2E", amber: "#B08D57", brass: "#8A6A2F", teal: "#3E6B67", purple: "#8A5A9E" };
+  const bgs = { green: "#EAF1EC", red: "#F6EAE7", amber: "#F3E9D8", brass: "#F1EAD8", teal: "#E5EFED", purple: "#F0E8F3" };
   const color = colors[tone] || "#B08D57";
   const bg = bgs[tone] || "#F3E9D8";
   const Icon = icon || Plus;
@@ -568,9 +608,9 @@ function InventoryList({ inventory, fmt, setView, onAdjust, onDelete }) {
 
   return (
     <div>
-      <AddRowButton label="Add item" tone="amber" onClick={() => setView("addItem")} full />
+      <AddRowButton label="Add ingredient" tone="amber" onClick={() => setView("addItem")} full />
       {inventory.length === 0 ? (
-        <EmptyNote text="No stock items yet. Add items here to track quantity and link them to sales." />
+        <EmptyNote text="No ingredients yet. Add them here to track quantity, link them to sales, and cost out your recipes." />
       ) : (
         <div style={styles.card}>
           {inventory.map((item) => {
@@ -705,6 +745,122 @@ function EventDetail({ event, transactions, fmt, setView, onDeleteTxn, onDeleteE
       <button style={styles.deleteEventBtn} onClick={onDeleteEvent}>
         <Trash2 size={13} color="#A13D2E" /> Delete event
       </button>
+    </div>
+  );
+}
+
+function RecipesList({ recipes, inventory, fmt, setView, onDelete }) {
+  return (
+    <div>
+      <AddRowButton label="New recipe" tone="purple" icon={ChefHat} onClick={() => setView("addRecipe")} full />
+      {recipes.length === 0 ? (
+        <EmptyNote text="No recipes yet. Add a dish, list what goes into it, and see its cost per serving plus how many you can make from what's in stock." />
+      ) : (
+        <div style={styles.card}>
+          {recipes.map((r) => {
+            const { cost, maxMakeable, limiting, missing } = recipeStats(r, inventory);
+            const margin = r.sellPrice != null ? r.sellPrice - cost : null;
+            const low = maxMakeable != null && maxMakeable <= 3;
+            return (
+              <div key={r.id} style={styles.recipeRow}>
+                <div style={styles.recipeTop}>
+                  <div style={{ ...styles.catIconWrap, background: "#EFE6F2" }}>
+                    <ChefHat size={15} color="#8A5A9E" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={styles.txnDesc}>{r.name}</div>
+                    <div style={styles.txnMeta}>
+                      Costs {fmt(cost)} to make
+                      {r.sellPrice != null && <> · sells {fmt(r.sellPrice)} · margin {fmt(margin)}</>}
+                    </div>
+                  </div>
+                  <button style={styles.deleteBtn} onClick={() => onDelete(r.id)} aria-label="Delete recipe">
+                    <Trash2 size={14} color="#8B8B7F" />
+                  </button>
+                </div>
+                {maxMakeable != null && (
+                  <div style={{ ...styles.suggestionNote, ...(low ? styles.suggestionNoteLow : {}) }}>
+                    {low && <AlertTriangle size={12} color="#8A5A12" />}
+                    You can make ~{maxMakeable} right now
+                    {limiting && <> — limited by {limiting}{low ? ", consider restocking" : ""}</>}
+                  </div>
+                )}
+                {missing && <div style={styles.suggestionNote}>One or more ingredients for this recipe were deleted from Ingredients.</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddRecipe({ inventory, onSave }) {
+  const [name, setName] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
+  const [lines, setLines] = useState([{ itemId: inventory[0]?.id || "", qty: "" }]);
+  const [error, setError] = useState("");
+
+  function updateLine(i, patch) {
+    setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, ...patch } : l));
+  }
+  function addLine() {
+    setLines((prev) => [...prev, { itemId: inventory[0]?.id || "", qty: "" }]);
+  }
+  function removeLine(i) {
+    setLines((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function handleSave() {
+    if (!name.trim()) { setError("Give the dish a name."); return; }
+    const ingredients = lines
+      .filter((l) => l.itemId && parseFloat(l.qty) > 0)
+      .map((l) => ({ itemId: l.itemId, qty: parseFloat(l.qty) }));
+    onSave({ name: name.trim(), sellPrice: sellPrice ? parseFloat(sellPrice) : null, ingredients });
+  }
+
+  return (
+    <div>
+      <Field label="Dish name">
+        <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="e.g. Jollof rice (1 plate)" style={styles.input} />
+      </Field>
+      <Field label="Sell price (optional)">
+        <input type="number" inputMode="decimal" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} placeholder="0.00" style={styles.input} />
+      </Field>
+
+      <div style={styles.fieldLabel}>Ingredients used per serving</div>
+      {inventory.length === 0 ? (
+        <EmptyNote text="Add your ingredients in the Ingredients screen first, then come back here to build the recipe." />
+      ) : (
+        <>
+          {lines.map((line, i) => {
+            const item = inventory.find((it) => it.id === line.itemId);
+            return (
+              <div key={i} style={styles.recipeLine}>
+                <select value={line.itemId} onChange={(e) => updateLine(i, { itemId: e.target.value })} style={{ ...styles.input, flex: 1.4 }}>
+                  {inventory.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
+                </select>
+                <input
+                  type="number" inputMode="decimal" value={line.qty}
+                  onChange={(e) => updateLine(i, { qty: e.target.value })}
+                  placeholder={item ? item.unit : "qty"} style={{ ...styles.input, flex: 0.8 }}
+                />
+                {lines.length > 1 && (
+                  <button style={styles.removeLineBtn} onClick={() => removeLine(i)} aria-label="Remove ingredient">
+                    <X size={14} color="#8B8B7F" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          <button style={styles.addLineBtn} onClick={addLine}>
+            <Plus size={13} color="#8A5A9E" /> Add another ingredient
+          </button>
+        </>
+      )}
+
+      {error && <div style={styles.errorText}>{error}</div>}
+      <button style={{ ...styles.saveBtn, background: "#8A5A9E", marginTop: 20 }} onClick={handleSave}>Save recipe</button>
     </div>
   );
 }
@@ -870,7 +1026,7 @@ function AddInventoryItem({ onSave }) {
   const [error, setError] = useState("");
 
   function handleSave() {
-    if (!name.trim()) { setError("Give the item a name."); return; }
+    if (!name.trim()) { setError("Give the ingredient a name."); return; }
     const q = parseFloat(quantity) || 0;
     const sp = parseFloat(sellPrice);
     if (!sp || sp <= 0) { setError("Enter a sell price greater than zero."); return; }
@@ -879,7 +1035,7 @@ function AddInventoryItem({ onSave }) {
 
   return (
     <div>
-      <Field label="Item name">
+      <Field label="Ingredient name">
         <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="e.g. Goat meat, Rice 5kg bag" style={styles.input} />
       </Field>
       <Field label="Unit">
@@ -904,7 +1060,7 @@ function AddInventoryItem({ onSave }) {
         <input type="number" inputMode="decimal" value={lowStock} onChange={(e) => setLowStock(e.target.value)} placeholder={`e.g. 2 ${unit}`} style={styles.input} />
       </Field>
       {error && <div style={styles.errorText}>{error}</div>}
-      <button style={{ ...styles.saveBtn, background: "#B08D57" }} onClick={handleSave}>Save item</button>
+      <button style={{ ...styles.saveBtn, background: "#B08D57" }} onClick={handleSave}>Save ingredient</button>
     </div>
   );
 }
@@ -951,7 +1107,7 @@ function ChipRow({ options, value, onChange, tone }) {
 }
 
 const styles = {
-  phone: { fontFamily: "'Inter', sans-serif", background: "#EEF0E4", maxWidth: 400, margin: "0 auto", minHeight: 660, display: "flex", flexDirection: "column", border: "1px solid #D9DCC9", borderRadius: 20, overflow: "hidden" },
+  phone: { fontFamily: "'Inter', sans-serif", background: "#EEF0E4", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", overflow: "hidden" },
   bootWrap: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 },
   bootText: { fontSize: 13, color: "#6B7368" },
   onboardWrap: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 28px", textAlign: "center" },
@@ -959,12 +1115,13 @@ const styles = {
   onboardTitle: { fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, color: "#1F2A24", marginBottom: 8 },
   onboardSub: { fontSize: 13, color: "#6B7368", lineHeight: 1.5, maxWidth: 280 },
   onboardLink: { background: "transparent", border: "none", color: "#8A6A2F", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 10, padding: 8 },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 14px", background: "#1F2A24" },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(16px + env(safe-area-inset-top)) 16px 14px", background: "#1F2A24", flexShrink: 0 },
   brand: { width: 32, height: 32, borderRadius: 8, background: "#2A3830", display: "flex", alignItems: "center", justifyContent: "center" },
   iconBtn: { width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
   headerTitle: { fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#F7F8F1", letterSpacing: 0.2 },
-  currencySelect: { background: "#2A3830", color: "#F7F8F1", border: "1px solid #3C4A3F", borderRadius: 8, padding: "6px 8px", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" },
-  body: { flex: 1, padding: "16px 16px 24px", overflowY: "auto" },
+  currencySelect: { background: "#2A3830", color: "#F7F8F1", border: "1px solid #3C4A3F", borderRadius: 8, padding: "6px 8px", fontSize: 16, fontFamily: "'IBM Plex Mono', monospace" },
+  body: { flex: 1, minHeight: 0, padding: "16px 16px 24px", overflowY: "auto" },
+  bottomBar: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", flexShrink: 0, background: "#F7F8F1", border: "none", borderTop: "1px solid #D9DCC9", color: "#8A6A2F", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "12px 0 calc(12px + env(safe-area-inset-bottom))" },
   homeIntro: { marginBottom: 22, textAlign: "center" },
   homeIntroLabel: { fontSize: 12, color: "#8B8B7F", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
   homeIntroAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 30, fontWeight: 600 },
@@ -1017,7 +1174,7 @@ const styles = {
   emptyNote: { fontSize: 12.5, color: "#8B8B7F", background: "#F7F8F1", border: "1px dashed #D9DCC9", borderRadius: 10, padding: "14px 16px", marginBottom: 20, lineHeight: 1.5 },
   field: { marginBottom: 16 },
   fieldLabel: { fontSize: 12.5, color: "#4B5A4E", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
-  input: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid #D9DCC9", background: "#F7F8F1", fontSize: 14, color: "#1F2A24", fontFamily: "'Inter', sans-serif" },
+  input: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid #D9DCC9", background: "#F7F8F1", fontSize: 16, color: "#1F2A24", fontFamily: "'Inter', sans-serif" },
   amountInput: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid #D9DCC9", background: "#F7F8F1", fontSize: 16, color: "#1F2A24", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 },
   errorText: { fontSize: 12, color: "#A13D2E", marginTop: 5, marginBottom: 8 },
   chipRow: { display: "flex", flexWrap: "wrap", gap: 8 },
@@ -1027,4 +1184,11 @@ const styles = {
   catHint: { fontSize: 12, color: "#6B7368", marginTop: 8, fontStyle: "italic" },
   saveBtn: { width: "100%", padding: "13px 0", borderRadius: 10, border: "none", color: "#FBFAF3", fontSize: 14.5, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: 20 },
   deleteEventBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "transparent", border: "1px dashed #D9DCC9", color: "#A13D2E", borderRadius: 10, padding: "10px 0", fontSize: 12.5, fontWeight: 500, cursor: "pointer", marginBottom: 8 },
+  recipeRow: { padding: "11px 14px", borderBottom: "1px solid #E4E6D8" },
+  recipeTop: { display: "flex", gap: 10, alignItems: "center" },
+  suggestionNote: { display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "#6B7368", marginTop: 8, marginLeft: 38 },
+  suggestionNoteLow: { color: "#8A5A12", fontWeight: 500 },
+  recipeLine: { display: "flex", gap: 8, marginBottom: 8, alignItems: "center" },
+  removeLineBtn: { width: 32, height: 40, borderRadius: 8, border: "1px solid #D9DCC9", background: "#F7F8F1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
+  addLineBtn: { display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "#8A5A9E", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "6px 0 4px" },
 };
