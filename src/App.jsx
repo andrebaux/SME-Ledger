@@ -3,7 +3,8 @@ import {
   Fuel, Home as HomeIcon, Zap, Users, Package, Wrench, ShieldCheck, Megaphone,
   Scale, Landmark, Receipt, MoreHorizontal, Plus, ArrowLeft, Trash2,
   TrendingUp, TrendingDown, Wallet, BookOpen, ChevronRight, AlertTriangle,
-  Minus, Link2, CalendarDays, Layers, LogOut, Mail, Lock, ChefHat, X
+  Minus, Link2, CalendarDays, Layers, LogOut, Mail, Lock, ChefHat, X,
+  Settings as SettingsIcon, Palette, Store
 } from "lucide-react";
 import {
   getSession, onAuthStateChange, signInWithPassword, signUpWithPassword,
@@ -31,11 +32,29 @@ const PAYMENTS = ["Cash", "Card", "Transfer", "Mobile money"];
 const UNITS = ["pcs", "kg", "g", "L", "ml", "box", "pack"];
 
 const BACK_TARGET = {
-  ledger: "home", sales: "home", inventory: "home", expenses: "home", events: "home", recipes: "home",
+  ledger: "home", sales: "home", inventory: "home", expenses: "home", events: "home", recipes: "home", settings: "home",
   addSale: "sales", addDailyTotal: "sales", addExpense: "expenses", addItem: "inventory",
   addEvent: "events", eventDetail: "events", addRecipe: "recipes",
   addEventIncome: "eventDetail", addEventExpense: "eventDetail",
 };
+
+const ACCENT_PRESETS = [
+  { id: "brass", hex: "#B08D57", name: "Brass" },
+  { id: "navy", hex: "#3B4A6B", name: "Navy" },
+  { id: "teal", hex: "#2F7A6F", name: "Teal" },
+  { id: "rosewood", hex: "#8C4A5E", name: "Rosewood" },
+  { id: "slate", hex: "#5B6B7A", name: "Slate" },
+  { id: "olive", hex: "#6B7A3E", name: "Olive" },
+];
+const DEFAULT_ACCENT = ACCENT_PRESETS[0].hex;
+
+function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+
+function shade(hex, percent) {
+  const f = parseInt(hex.slice(1), 16), t = percent < 0 ? 0 : 255, p = Math.abs(percent);
+  const R = f >> 16, G = (f >> 8) & 0x00ff, B = f & 0x0000ff;
+  return "#" + (0x1000000 + (Math.round((t - R) * p) + R) * 0x10000 + (Math.round((t - G) * p) + G) * 0x100 + (Math.round((t - B) * p) + B)).toString(16).slice(1);
+}
 
 function recipeStats(recipe, inventory) {
   let cost = 0;
@@ -51,7 +70,7 @@ function recipeStats(recipe, inventory) {
       if (maxMakeable === null || possible < maxMakeable) { maxMakeable = possible; limiting = item.name; }
     }
   }
-  return { cost, maxMakeable, limiting, missing };
+  return { cost: round2(cost), maxMakeable, limiting, missing };
 }
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
@@ -68,6 +87,8 @@ export default function App() {
   const [inventory, setInventory] = useState([]);
   const [events, setEvents] = useState([]);
   const [recipes, setRecipes] = useState([]);
+  const [businessName, setBusinessName] = useState("");
+  const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT);
   const [currency, setCurrency] = useState("$");
   const [view, setView] = useState("home");
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -92,6 +113,8 @@ export default function App() {
       setEvents(data?.events || []);
       setRecipes(data?.recipes || []);
       setCurrency(data?.currency || "$");
+      setBusinessName(data?.businessName || "");
+      setAccentColor(data?.accentColor || DEFAULT_ACCENT);
       setLoaded(true);
       setBooting(false);
     })();
@@ -100,10 +123,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded || !userId) return;
     const t = setTimeout(() => {
-      saveData(userId, { transactions, inventory, events, recipes, currency });
+      saveData(userId, { transactions, inventory, events, recipes, currency, businessName, accentColor });
     }, 400); // debounce so rapid edits don't spam the database
     return () => clearTimeout(t);
-  }, [transactions, inventory, events, recipes, currency, loaded, userId]);
+  }, [transactions, inventory, events, recipes, currency, businessName, accentColor, loaded, userId]);
 
   async function handleSignOut() {
     setLoaded(false);
@@ -129,9 +152,11 @@ export default function App() {
   const selectedEvent = events.find((e) => e.id === selectedEventId) || null;
   const eventTxns = selectedEvent ? transactions.filter((t) => t.eventId === selectedEvent.id) : [];
 
-  function addTransaction(tx) { setTransactions((prev) => [{ ...tx, id: uid() }, ...prev]); }
+  function addTransaction(tx) { setTransactions((prev) => [{ ...tx, amount: round2(tx.amount), id: uid() }, ...prev]); }
   function deleteTransaction(id) { setTransactions((prev) => prev.filter((t) => t.id !== id)); }
-  function addInventoryItem(item) { setInventory((prev) => [{ ...item, id: uid() }, ...prev]); }
+  function addInventoryItem(item) {
+    setInventory((prev) => [{ ...item, costPrice: round2(item.costPrice), id: uid() }, ...prev]);
+  }
   function deleteInventoryItem(id) { setInventory((prev) => prev.filter((i) => i.id !== id)); }
   function adjustStock(id, delta) {
     setInventory((prev) => prev.map((i) => i.id === id ? { ...i, quantity: Math.max(0, +(i.quantity + delta).toFixed(3)) } : i));
@@ -179,8 +204,8 @@ export default function App() {
   }
 
   const titles = {
-    home: "Workspace", ledger: "Ledger", sales: "Sales", inventory: "Ingredients", expenses: "Expenses",
-    events: "Events", recipes: "Recipes", addSale: "New sale", addDailyTotal: "Day's total sales", addExpense: "New expense",
+    home: businessName.trim() || "Workspace", ledger: "Ledger", sales: "Sales", inventory: "Ingredients", expenses: "Expenses",
+    events: "Events", recipes: "Recipes", settings: "Settings", addSale: "New sale", addDailyTotal: "Day's total sales", addExpense: "New expense",
     addItem: "New ingredient", addEvent: "New event", addRecipe: "New recipe", eventDetail: selectedEvent?.name || "Event",
     addEventIncome: "Event income", addEventExpense: "Event cost",
   };
@@ -200,15 +225,16 @@ export default function App() {
         title={titles[view]}
         currency={currency}
         setCurrency={setCurrency}
+        accentColor={accentColor}
         onBack={() => setView(BACK_TARGET[view] || "home")}
       />
 
       <div className="ledger-scroll" style={styles.body}>
         {view === "home" && (
-          <HomeGrid setView={setView} lowStockCount={lowStockItems.length} eventsCount={events.length} totals={totals} fmt={fmt} email={session.user.email} onSignOut={handleSignOut} />
+          <HomeGrid setView={setView} lowStockCount={lowStockItems.length} eventsCount={events.length} totals={totals} fmt={fmt} email={session.user.email} onSignOut={handleSignOut} accentColor={accentColor} businessName={businessName} />
         )}
         {view === "ledger" && (
-          <Ledger totals={totals} fmt={fmt} transactions={transactions} lowStockItems={lowStockItems} setView={setView} />
+          <Ledger totals={totals} fmt={fmt} transactions={transactions} lowStockItems={lowStockItems} setView={setView} accentColor={accentColor} />
         )}
         {view === "sales" && (
           <SalesList transactions={transactions} fmt={fmt} onDelete={deleteTransaction} setView={setView} />
@@ -228,6 +254,12 @@ export default function App() {
         )}
         {view === "addRecipe" && (
           <AddRecipe inventory={inventory} onSave={addRecipe} />
+        )}
+        {view === "settings" && (
+          <SettingsScreen
+            businessName={businessName} setBusinessName={setBusinessName}
+            accentColor={accentColor} setAccentColor={setAccentColor}
+          />
         )}
         {view === "eventDetail" && selectedEvent && (
           <EventDetail event={selectedEvent} transactions={eventTxns} fmt={fmt} setView={setView}
@@ -262,7 +294,7 @@ export default function App() {
 
       {view !== "home" && (
         <button style={styles.bottomBar} onClick={() => setView("home")}>
-          <HomeIcon size={16} color="#B08D57" />
+          <HomeIcon size={16} color={accentColor} />
           <span>Home</span>
         </button>
       )}
@@ -374,12 +406,12 @@ function AuthScreen() {
   );
 }
 
-function Header({ view, title, currency, setCurrency, onBack }) {
+function Header({ view, title, currency, setCurrency, accentColor, onBack }) {
   const isHome = view === "home";
   return (
     <div style={styles.header}>
       {isHome ? (
-        <div style={styles.brand}><BookOpen size={18} color="#B08D57" /></div>
+        <div style={styles.brand}><BookOpen size={18} color={accentColor} /></div>
       ) : (
         <button style={styles.iconBtn} onClick={onBack} aria-label="Back">
           <ArrowLeft size={20} color="#F7F8F1" />
@@ -397,18 +429,20 @@ function Header({ view, title, currency, setCurrency, onBack }) {
   );
 }
 
-function HomeGrid({ setView, lowStockCount, eventsCount, totals, fmt, email, onSignOut }) {
+function HomeGrid({ setView, lowStockCount, eventsCount, totals, fmt, email, onSignOut, accentColor, businessName }) {
   const tiles = [
-    { id: "ledger", label: "Ledger", icon: Wallet, bg: "#B08D57" },
+    { id: "ledger", label: "Ledger", icon: Wallet, bg: accentColor },
     { id: "sales", label: "Sales", icon: TrendingUp, bg: "#2F6B4F" },
     { id: "inventory", label: "Ingredients", icon: Package, bg: "#C98A2B", badge: lowStockCount },
     { id: "expenses", label: "Expenses", icon: TrendingDown, bg: "#A13D2E" },
     { id: "events", label: "Events", icon: CalendarDays, bg: "#4C5E8A", count: eventsCount },
     { id: "recipes", label: "Recipes", icon: ChefHat, bg: "#8A5A9E" },
+    { id: "settings", label: "Settings", icon: SettingsIcon, bg: "#5B6B7A" },
   ];
 
   return (
     <div>
+      {businessName.trim() && <div style={styles.businessNameHeading}>{businessName}</div>}
       <div style={styles.homeIntro}>
         <div style={styles.homeIntroLabel}>Net balance</div>
         <div style={{ ...styles.homeIntroAmount, color: totals.net >= 0 ? "#2F6B4F" : "#A13D2E" }}>
@@ -442,7 +476,7 @@ function HomeGrid({ setView, lowStockCount, eventsCount, totals, fmt, email, onS
   );
 }
 
-function Ledger({ totals, fmt, transactions, lowStockItems, setView }) {
+function Ledger({ totals, fmt, transactions, lowStockItems, setView, accentColor }) {
   const recent = transactions.slice(0, 5);
   const catList = EXPENSE_CATEGORIES
     .map((c) => ({ ...c, total: totals.byCategory[c.id] || 0 }))
@@ -475,7 +509,7 @@ function Ledger({ totals, fmt, transactions, lowStockItems, setView }) {
                     <span style={styles.catLabel}>{c.label}</span>
                     <span style={styles.catAmount}>{fmt(c.total)}</span>
                   </div>
-                  <div style={styles.barTrack}><div style={{ ...styles.barFill, width: `${Math.max(6, (c.total / maxCat) * 100)}%` }} /></div>
+                  <div style={styles.barTrack}><div style={{ ...styles.barFill, width: `${Math.max(6, (c.total / maxCat) * 100)}%`, background: accentColor }} /></div>
                 </div>
               </div>
             );
@@ -597,12 +631,14 @@ function AddRowButton({ label, tone, onClick, icon, full }) {
 function InventoryList({ inventory, fmt, setView, onAdjust, onDelete }) {
   const [adjustState, setAdjustState] = useState(null);
   const [qtyInput, setQtyInput] = useState("");
+  const [restockMode, setRestockMode] = useState("amount"); // amount | packs
 
-  function openAdjust(id, mode) { setAdjustState({ id, mode }); setQtyInput(""); }
-  function confirmAdjust() {
+  function openAdjust(id, mode) { setAdjustState({ id, mode }); setQtyInput(""); setRestockMode("amount"); }
+  function confirmAdjust(item) {
     const n = parseFloat(qtyInput);
     if (!n || n <= 0) return;
-    onAdjust(adjustState.id, adjustState.mode === "restock" ? n : -n);
+    const delta = adjustState.mode === "restock" && restockMode === "packs" ? n * item.packSize : n;
+    onAdjust(adjustState.id, adjustState.mode === "restock" ? delta : -delta);
     setAdjustState(null); setQtyInput("");
   }
 
@@ -625,7 +661,8 @@ function InventoryList({ inventory, fmt, setView, onAdjust, onDelete }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={styles.txnDesc}>{item.name}</div>
                     <div style={styles.txnMeta}>
-                      {item.quantity} {item.unit} on hand · sells {fmt(item.sellPrice)}/{item.unit}
+                      {item.quantity} {item.unit} on hand · costs {fmt(item.costPrice)}/{item.unit}
+                      {item.packSize > 0 && ` · 1 pack = ${item.packSize}${item.unit}`}
                       {low && <span style={{ color: "#A13D2E", fontWeight: 600 }}> · low stock</span>}
                     </div>
                   </div>
@@ -642,14 +679,29 @@ function InventoryList({ inventory, fmt, setView, onAdjust, onDelete }) {
                 {adjusting && (
                   <div style={styles.adjustPanel}>
                     <div style={styles.fieldLabel}>
-                      {adjustState.mode === "restock" ? `Add stock (${item.unit})` : `Log waste / spoilage (${item.unit})`}
+                      {adjustState.mode === "restock" ? "Add stock" : `Log waste / spoilage (${item.unit})`}
                     </div>
+                    {adjustState.mode === "restock" && item.packSize > 0 && (
+                      <div style={{ ...styles.chipRow, marginBottom: 8 }}>
+                        <button onClick={() => setRestockMode("amount")} style={{ ...styles.chip, borderColor: restockMode === "amount" ? "#2F6B4F" : "#D9DCC9", background: restockMode === "amount" ? "#EAF1EC" : "#F7F8F1", color: restockMode === "amount" ? "#2F6B4F" : "#4B5A4E" }}>
+                          Amount ({item.unit})
+                        </button>
+                        <button onClick={() => setRestockMode("packs")} style={{ ...styles.chip, borderColor: restockMode === "packs" ? "#2F6B4F" : "#D9DCC9", background: restockMode === "packs" ? "#EAF1EC" : "#F7F8F1", color: restockMode === "packs" ? "#2F6B4F" : "#4B5A4E" }}>
+                          Packs (×{item.packSize}{item.unit})
+                        </button>
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 8 }}>
                       <input type="number" inputMode="decimal" value={qtyInput} autoFocus
-                        onChange={(e) => setQtyInput(e.target.value)} placeholder="0" style={{ ...styles.input, flex: 1 }} />
-                      <button style={{ ...styles.saveBtn, width: 90, margin: 0, padding: "0 0", background: adjustState.mode === "restock" ? "#2F6B4F" : "#A13D2E" }} onClick={confirmAdjust}>Save</button>
+                        onChange={(e) => setQtyInput(e.target.value)}
+                        placeholder={adjustState.mode === "restock" && restockMode === "packs" ? "Number of packs" : `Amount in ${item.unit}`}
+                        style={{ ...styles.input, flex: 1 }} />
+                      <button style={{ ...styles.saveBtn, width: 90, margin: 0, padding: "0 0", background: adjustState.mode === "restock" ? "#2F6B4F" : "#A13D2E" }} onClick={() => confirmAdjust(item)}>Save</button>
                       <button style={styles.cancelBtn} onClick={() => setAdjustState(null)}>Cancel</button>
                     </div>
+                    {adjustState.mode === "restock" && restockMode === "packs" && qtyInput && (
+                      <div style={styles.catHint}>= {round2(parseFloat(qtyInput || 0) * item.packSize)} {item.unit}</div>
+                    )}
                   </div>
                 )}
               </div>
@@ -816,7 +868,7 @@ function AddRecipe({ inventory, onSave }) {
     const ingredients = lines
       .filter((l) => l.itemId && parseFloat(l.qty) > 0)
       .map((l) => ({ itemId: l.itemId, qty: parseFloat(l.qty) }));
-    onSave({ name: name.trim(), sellPrice: sellPrice ? parseFloat(sellPrice) : null, ingredients });
+    onSave({ name: name.trim(), sellPrice: sellPrice ? round2(parseFloat(sellPrice)) : null, ingredients });
   }
 
   return (
@@ -825,7 +877,7 @@ function AddRecipe({ inventory, onSave }) {
         <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="e.g. Jollof rice (1 plate)" style={styles.input} />
       </Field>
       <Field label="Sell price (optional)">
-        <input type="number" inputMode="decimal" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} placeholder="0.00" style={styles.input} />
+        <input type="number" inputMode="decimal" step="0.01" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} placeholder="0.00" style={styles.input} />
       </Field>
 
       <div style={styles.fieldLabel}>Ingredients used per serving</div>
@@ -841,7 +893,7 @@ function AddRecipe({ inventory, onSave }) {
                   {inventory.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
                 </select>
                 <input
-                  type="number" inputMode="decimal" value={line.qty}
+                  type="number" inputMode="decimal" step="any" value={line.qty}
                   onChange={(e) => updateLine(i, { qty: e.target.value })}
                   placeholder={item ? item.unit : "qty"} style={{ ...styles.input, flex: 0.8 }}
                 />
@@ -877,13 +929,6 @@ function AddSale({ onSave, inventory, eventContext }) {
 
   const selectedItem = inventory.find((i) => i.id === itemId);
 
-  useEffect(() => {
-    if (linked && selectedItem && qty) {
-      const n = parseFloat(qty);
-      if (n > 0) setAmount((n * selectedItem.sellPrice).toFixed(2));
-    }
-  }, [qty, itemId, linked]);
-
   function handleSave() {
     const num = parseFloat(amount);
     if (!num || num <= 0) { setError("Enter an amount greater than zero."); return; }
@@ -906,10 +951,10 @@ function AddSale({ onSave, inventory, eventContext }) {
     <div>
       <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={styles.input} /></Field>
       {inventory.length > 0 && (
-        <Field label="Link to inventory item (optional)">
+        <Field label="Link to an ingredient (optional)">
           <div style={styles.chipRow}>
             <button onClick={() => setLinked((v) => !v)} style={{ ...styles.chip, display: "flex", alignItems: "center", gap: 5, borderColor: linked ? "#2F6B4F" : "#D9DCC9", background: linked ? "#EAF1EC" : "#F7F8F1", color: linked ? "#2F6B4F" : "#4B5A4E" }}>
-              <Link2 size={12} /> {linked ? "Linked" : "Link an item"}
+              <Link2 size={12} /> {linked ? "Linked" : "Link an ingredient"}
             </button>
           </div>
           {linked && (
@@ -918,7 +963,8 @@ function AddSale({ onSave, inventory, eventContext }) {
                 {inventory.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.quantity} {i.unit} left)</option>)}
               </select>
               <div style={{ height: 8 }} />
-              <input type="number" inputMode="decimal" value={qty} onChange={(e) => { setQty(e.target.value); setError(""); }} placeholder={`Quantity sold (${selectedItem?.unit || ""})`} style={styles.input} />
+              <input type="number" inputMode="decimal" step="any" value={qty} onChange={(e) => { setQty(e.target.value); setError(""); }} placeholder={`Quantity sold (${selectedItem?.unit || ""})`} style={styles.input} />
+              <div style={styles.catHint}>This deducts stock automatically. Enter the sale amount below yourself.</div>
             </div>
           )}
         </Field>
@@ -927,7 +973,7 @@ function AddSale({ onSave, inventory, eventContext }) {
         <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={eventContext ? "e.g. Table sales, deposit received" : "e.g. Walk-in customer, Invoice #204"} style={styles.input} />
       </Field>
       <Field label="Amount">
-        <input type="number" inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }} placeholder="0.00" style={styles.amountInput} />
+        <input type="number" inputMode="decimal" step="0.01" value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }} placeholder="0.00" style={styles.amountInput} />
         {error && <div style={styles.errorText}>{error}</div>}
       </Field>
       <Field label="Payment method"><ChipRow options={PAYMENTS} value={payment} onChange={setPayment} tone="green" /></Field>
@@ -954,7 +1000,7 @@ function AddDailyTotal({ onSave }) {
       <EmptyNote text="Use this when it's too busy to log every sale. Enter one lump sum for everything sold today, no itemizing needed." />
       <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={styles.input} /></Field>
       <Field label="Total sales for the day">
-        <input type="number" inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }} placeholder="0.00" style={styles.amountInput} />
+        <input type="number" inputMode="decimal" step="0.01" value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }} placeholder="0.00" style={styles.amountInput} />
         {error && <div style={styles.errorText}>{error}</div>}
       </Field>
       <Field label="Note (optional)">
@@ -1007,7 +1053,7 @@ function AddExpense({ onSave, eventContext }) {
         <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={eventContext ? "e.g. Caterer deposit, tent hire" : "e.g. Diesel for delivery van"} style={styles.input} />
       </Field>
       <Field label="Amount">
-        <input type="number" inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }} placeholder="0.00" style={styles.amountInput} />
+        <input type="number" inputMode="decimal" step="0.01" value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }} placeholder="0.00" style={styles.amountInput} />
         {error && <div style={styles.errorText}>{error}</div>}
       </Field>
       <Field label="Payment method"><ChipRow options={PAYMENTS} value={payment} onChange={setPayment} tone="red" /></Field>
@@ -1021,24 +1067,27 @@ function AddInventoryItem({ onSave }) {
   const [unit, setUnit] = useState("pcs");
   const [quantity, setQuantity] = useState("");
   const [costPrice, setCostPrice] = useState("");
-  const [sellPrice, setSellPrice] = useState("");
+  const [packSize, setPackSize] = useState("");
   const [lowStock, setLowStock] = useState("");
   const [error, setError] = useState("");
 
   function handleSave() {
     if (!name.trim()) { setError("Give the ingredient a name."); return; }
     const q = parseFloat(quantity) || 0;
-    const sp = parseFloat(sellPrice);
-    if (!sp || sp <= 0) { setError("Enter a sell price greater than zero."); return; }
-    onSave({ name: name.trim(), unit, quantity: q, costPrice: parseFloat(costPrice) || 0, sellPrice: sp, lowStock: lowStock ? parseFloat(lowStock) : null });
+    onSave({
+      name: name.trim(), unit, quantity: q,
+      costPrice: round2(parseFloat(costPrice) || 0),
+      packSize: packSize ? parseFloat(packSize) : null,
+      lowStock: lowStock ? parseFloat(lowStock) : null,
+    });
   }
 
   return (
     <div>
       <Field label="Ingredient name">
-        <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="e.g. Goat meat, Rice 5kg bag" style={styles.input} />
+        <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="e.g. Flour, Rice, Cooking oil, Sugar" style={styles.input} />
       </Field>
-      <Field label="Unit">
+      <Field label="Unit (used in recipes)">
         <div style={styles.chipRow}>
           {UNITS.map((u) => (
             <button key={u} onClick={() => setUnit(u)} style={{ ...styles.chip, borderColor: unit === u ? "#B08D57" : "#D9DCC9", background: unit === u ? "#F3E9D8" : "#F7F8F1", color: unit === u ? "#7A5B29" : "#4B5A4E" }}>{u}</button>
@@ -1046,18 +1095,17 @@ function AddInventoryItem({ onSave }) {
         </div>
       </Field>
       <Field label={`Opening quantity (${unit})`}>
-        <input type="number" inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" style={styles.input} />
+        <input type="number" inputMode="decimal" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" style={styles.input} />
       </Field>
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <Field label="Cost price / unit"><input type="number" inputMode="decimal" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0.00" style={styles.input} /></Field>
-        </div>
-        <div style={{ flex: 1 }}>
-          <Field label="Sell price / unit"><input type="number" inputMode="decimal" value={sellPrice} onChange={(e) => { setSellPrice(e.target.value); setError(""); }} placeholder="0.00" style={styles.input} /></Field>
-        </div>
-      </div>
-      <Field label="Low stock warning below (optional)">
-        <input type="number" inputMode="decimal" value={lowStock} onChange={(e) => setLowStock(e.target.value)} placeholder={`e.g. 2 ${unit}`} style={styles.input} />
+      <Field label={`Cost price per ${unit}`}>
+        <input type="number" inputMode="decimal" step="0.01" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0.00" style={styles.input} />
+      </Field>
+      <Field label={`Purchase pack size in ${unit} (optional)`}>
+        <input type="number" inputMode="decimal" step="any" value={packSize} onChange={(e) => setPackSize(e.target.value)} placeholder={`e.g. 400 (if you buy 400${unit} packs)`} style={styles.input} />
+        <div style={styles.catHint}>If you buy this in packs bigger than what a recipe needs — e.g. 400{unit} bags of flour used 100{unit} at a time — enter the pack size here. Restocking will then let you enter number of packs instead of doing the math yourself.</div>
+      </Field>
+      <Field label={`Low stock warning below (optional)`}>
+        <input type="number" inputMode="decimal" step="any" value={lowStock} onChange={(e) => setLowStock(e.target.value)} placeholder={`e.g. 2 ${unit}`} style={styles.input} />
       </Field>
       {error && <div style={styles.errorText}>{error}</div>}
       <button style={{ ...styles.saveBtn, background: "#B08D57" }} onClick={handleSave}>Save ingredient</button>
@@ -1083,6 +1131,41 @@ function AddEvent({ onSave }) {
       <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={styles.input} /></Field>
       {error && <div style={styles.errorText}>{error}</div>}
       <button style={{ ...styles.saveBtn, background: "#4C5E8A" }} onClick={handleSave}>Create event</button>
+    </div>
+  );
+}
+
+function SettingsScreen({ businessName, setBusinessName, accentColor, setAccentColor }) {
+  const [nameInput, setNameInput] = useState(businessName);
+
+  return (
+    <div>
+      <div style={styles.settingsSection}>
+        <div style={styles.settingsSectionTitle}><Store size={14} color="#4B5A4E" /> Business name</div>
+        <input
+          type="text" value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          onBlur={() => setBusinessName(nameInput.trim())}
+          placeholder="e.g. Mama Ade's Kitchen"
+          style={styles.input}
+        />
+        <div style={styles.catHint}>Shown at the top of your Home screen.</div>
+      </div>
+
+      <div style={styles.settingsSection}>
+        <div style={styles.settingsSectionTitle}><Palette size={14} color="#4B5A4E" /> Accent color</div>
+        <div style={styles.swatchRow}>
+          {ACCENT_PRESETS.map((p) => (
+            <button
+              key={p.id} onClick={() => setAccentColor(p.hex)}
+              style={{ ...styles.swatch, background: p.hex, ...(accentColor === p.hex ? styles.swatchActive : {}) }}
+              aria-label={p.name}
+              title={p.name}
+            />
+          ))}
+        </div>
+        <div style={styles.catHint}>Colors your Home screen and ledger accents. Sales, expenses, events and recipes keep their own colors so money in/out always reads the same way.</div>
+      </div>
     </div>
   );
 }
@@ -1123,6 +1206,7 @@ const styles = {
   body: { flex: 1, minHeight: 0, padding: "16px 16px 24px", overflowY: "auto" },
   bottomBar: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", flexShrink: 0, background: "#F7F8F1", border: "none", borderTop: "1px solid #D9DCC9", color: "#8A6A2F", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "12px 0 calc(12px + env(safe-area-inset-bottom))" },
   homeIntro: { marginBottom: 22, textAlign: "center" },
+  businessNameHeading: { fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "#1F2A24", textAlign: "center", marginBottom: 14 },
   homeIntroLabel: { fontSize: 12, color: "#8B8B7F", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
   homeIntroAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 30, fontWeight: 600 },
   homeGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "22px 10px" },
@@ -1191,4 +1275,9 @@ const styles = {
   recipeLine: { display: "flex", gap: 8, marginBottom: 8, alignItems: "center" },
   removeLineBtn: { width: 32, height: 40, borderRadius: 8, border: "1px solid #D9DCC9", background: "#F7F8F1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
   addLineBtn: { display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "#8A5A9E", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "6px 0 4px" },
+  settingsSection: { marginBottom: 26 },
+  settingsSectionTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "#1F2A24", marginBottom: 10 },
+  swatchRow: { display: "flex", gap: 10, flexWrap: "wrap" },
+  swatch: { width: 38, height: 38, borderRadius: 10, border: "2px solid transparent", cursor: "pointer" },
+  swatchActive: { border: "2px solid #1F2A24", boxShadow: "0 0 0 2px #FBFAF3 inset" },
 };
