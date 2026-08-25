@@ -4,7 +4,7 @@ import {
   Scale, Landmark, Receipt, MoreHorizontal, Plus, ArrowLeft, Trash2,
   TrendingUp, TrendingDown, Wallet, BookOpen, ChevronRight, AlertTriangle,
   Minus, Link2, CalendarDays, Layers, LogOut, Mail, Lock, ChefHat, X,
-  Settings as SettingsIcon, Palette, Store
+  Settings as SettingsIcon, Palette, Store, Check
 } from "lucide-react";
 import {
   getSession, onAuthStateChange, signInWithPassword, signUpWithPassword,
@@ -38,15 +38,33 @@ const BACK_TARGET = {
   addEventIncome: "eventDetail", addEventExpense: "eventDetail",
 };
 
-const ACCENT_PRESETS = [
+const THEMES = [
+  { id: "ledger", name: "Ledger", bg: "#EEF0E4", card: "#F7F8F1", tape: "#FBFAF3", border: "#D9DCC9", borderSoft: "#E4E6D8", ink: "#1F2A24", inkSoft: "#6B7368", inkFaint: "#8B8B7F", header: "#1F2A24", headerChip: "#2A3830", headerChipBorder: "#3C4A3F", headerText: "#F7F8F1", accent: "#B08D57" },
+  { id: "ocean", name: "Ocean", bg: "#E7EEF3", card: "#F4F9FC", tape: "#FAFDFE", border: "#C6D7E2", borderSoft: "#D8E4EC", ink: "#16283A", inkSoft: "#4F6779", inkFaint: "#7891A3", header: "#132436", headerChip: "#1D3145", headerChipBorder: "#2E4459", headerText: "#EAF3F9", accent: "#2F7DA0" },
+  { id: "forest", name: "Forest", bg: "#E8EFE2", card: "#F4F9F0", tape: "#FAFDF7", border: "#C7DAB9", borderSoft: "#DAE7CE", ink: "#1C2E17", inkSoft: "#54704A", inkFaint: "#7B9370", header: "#1A2C16", headerChip: "#25391F", headerChipBorder: "#37502F", headerText: "#EEF6E9", accent: "#4E8340" },
+  { id: "sunset", name: "Sunset", bg: "#F4E9E0", card: "#FAF3EC", tape: "#FEF9F5", border: "#E2C3AC", borderSoft: "#EEDAC9", ink: "#38230F", inkSoft: "#7C5D45", inkFaint: "#9E7E64", header: "#33200E", headerChip: "#432C17", headerChipBorder: "#5A3D22", headerText: "#FAECE1", accent: "#C96A3B" },
+  { id: "rosewood", name: "Rosewood", bg: "#F2E5E8", card: "#F9EFF1", tape: "#FDF7F8", border: "#E0BFC6", borderSoft: "#ECD3D8", ink: "#341C22", inkSoft: "#77555D", inkFaint: "#9A757D", header: "#2E181D", headerChip: "#3F2229", headerChipBorder: "#552F38", headerText: "#F7E7EA", accent: "#A24E64" },
+  { id: "lavender", name: "Lavender", bg: "#EAE7F1", card: "#F5F3FA", tape: "#FBFAFE", border: "#D2C9E2", borderSoft: "#E3DCEF", ink: "#221C36", inkSoft: "#645A7C", inkFaint: "#8B82A0", header: "#1E1930", headerChip: "#2A2340", headerChipBorder: "#3C3355", headerText: "#EEEAF7", accent: "#715AAA" },
+  { id: "mint", name: "Mint", bg: "#E3F0EA", card: "#F0F9F4", tape: "#F8FEFB", border: "#BEDECE", borderSoft: "#D6EBE1", ink: "#132D25", inkSoft: "#517063", inkFaint: "#7A9A8D", header: "#122A22", headerChip: "#1C3A30", headerChipBorder: "#2C4E42", headerText: "#E7F6EF", accent: "#2F9F7C" },
+  { id: "charcoal", name: "Charcoal (dark)", bg: "#22252A", card: "#2B2F36", tape: "#2B2F36", border: "#3B414B", borderSoft: "#33383F", ink: "#EAEBEC", inkSoft: "#A3A9B0", inkFaint: "#7E858E", header: "#17191D", headerChip: "#22262C", headerChipBorder: "#33383F", headerText: "#F1F2F3", accent: "#CB9A5A" },
+  { id: "slate", name: "Slate (dark)", bg: "#1D2430", card: "#252D3A", tape: "#252D3A", border: "#37404F", borderSoft: "#2E3644", ink: "#E7ECF3", inkSoft: "#98A4B6", inkFaint: "#78859A", header: "#141A24", headerChip: "#1E2632", headerChipBorder: "#2E3846", headerText: "#EEF2F7", accent: "#5B9CD6" },
+];
+const DEFAULT_THEME = THEMES[0];
+
+const ACCENT_SWATCHES = [
   { id: "brass", hex: "#B08D57", name: "Brass" },
   { id: "navy", hex: "#3B4A6B", name: "Navy" },
   { id: "teal", hex: "#2F7A6F", name: "Teal" },
   { id: "rosewood", hex: "#8C4A5E", name: "Rosewood" },
   { id: "slate", hex: "#5B6B7A", name: "Slate" },
   { id: "olive", hex: "#6B7A3E", name: "Olive" },
+  { id: "indigo", hex: "#4A4E9E", name: "Indigo" },
+  { id: "amber", hex: "#C98A2B", name: "Amber" },
+  { id: "crimson", hex: "#A23B4E", name: "Crimson" },
+  { id: "emerald", hex: "#2E8B6F", name: "Emerald" },
+  { id: "plum", hex: "#7A4F8C", name: "Plum" },
+  { id: "charcoal", hex: "#3A3A3A", name: "Charcoal" },
 ];
-const DEFAULT_ACCENT = ACCENT_PRESETS[0].hex;
 
 function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
 
@@ -88,7 +106,8 @@ export default function App() {
   const [events, setEvents] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [businessName, setBusinessName] = useState("");
-  const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT);
+  const [themeId, setThemeId] = useState("ledger");
+  const [accentOverride, setAccentOverride] = useState(null);
   const [currency, setCurrency] = useState("$");
   const [view, setView] = useState("home");
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -114,7 +133,8 @@ export default function App() {
       setRecipes(data?.recipes || []);
       setCurrency(data?.currency || "$");
       setBusinessName(data?.businessName || "");
-      setAccentColor(data?.accentColor || DEFAULT_ACCENT);
+      setThemeId(data?.themeId || "ledger");
+      setAccentOverride(data?.accentOverride ?? data?.accentColor ?? null);
       setLoaded(true);
       setBooting(false);
     })();
@@ -123,10 +143,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded || !userId) return;
     const t = setTimeout(() => {
-      saveData(userId, { transactions, inventory, events, recipes, currency, businessName, accentColor });
+      saveData(userId, { transactions, inventory, events, recipes, currency, businessName, themeId, accentOverride });
     }, 400); // debounce so rapid edits don't spam the database
     return () => clearTimeout(t);
-  }, [transactions, inventory, events, recipes, currency, businessName, accentColor, loaded, userId]);
+  }, [transactions, inventory, events, recipes, currency, businessName, themeId, accentOverride, loaded, userId]);
 
   async function handleSignOut() {
     setLoaded(false);
@@ -176,6 +196,18 @@ export default function App() {
 
   const fmt = (n) => `${currency}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const theme = useMemo(() => {
+    const base = THEMES.find((t) => t.id === themeId) || DEFAULT_THEME;
+    return accentOverride ? { ...base, accent: accentOverride } : base;
+  }, [themeId, accentOverride]);
+
+  const themeVars = {
+    "--bg": theme.bg, "--card": theme.card, "--tape": theme.tape, "--border": theme.border,
+    "--border-soft": theme.borderSoft, "--ink": theme.ink, "--ink-soft": theme.inkSoft, "--ink-faint": theme.inkFaint,
+    "--header-bg": theme.header, "--header-chip": theme.headerChip, "--header-chip-border": theme.headerChipBorder,
+    "--header-text": theme.headerText, "--accent": theme.accent,
+  };
+
   if (session === undefined) {
     return (
       <div style={styles.phone} className="phone-shell">
@@ -211,7 +243,7 @@ export default function App() {
   };
 
   return (
-    <div style={styles.phone} className="phone-shell">
+    <div style={{ ...styles.phone, ...themeVars }} className="phone-shell">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -225,16 +257,16 @@ export default function App() {
         title={titles[view]}
         currency={currency}
         setCurrency={setCurrency}
-        accentColor={accentColor}
+        accentColor={theme.accent}
         onBack={() => setView(BACK_TARGET[view] || "home")}
       />
 
       <div className="ledger-scroll" style={styles.body}>
         {view === "home" && (
-          <HomeGrid setView={setView} lowStockCount={lowStockItems.length} eventsCount={events.length} totals={totals} fmt={fmt} email={session.user.email} onSignOut={handleSignOut} accentColor={accentColor} businessName={businessName} />
+          <HomeGrid setView={setView} lowStockCount={lowStockItems.length} eventsCount={events.length} totals={totals} fmt={fmt} email={session.user.email} onSignOut={handleSignOut} accentColor={theme.accent} businessName={businessName} />
         )}
         {view === "ledger" && (
-          <Ledger totals={totals} fmt={fmt} transactions={transactions} lowStockItems={lowStockItems} setView={setView} accentColor={accentColor} />
+          <Ledger totals={totals} fmt={fmt} transactions={transactions} lowStockItems={lowStockItems} setView={setView} accentColor={theme.accent} />
         )}
         {view === "sales" && (
           <SalesList transactions={transactions} fmt={fmt} onDelete={deleteTransaction} setView={setView} />
@@ -258,7 +290,9 @@ export default function App() {
         {view === "settings" && (
           <SettingsScreen
             businessName={businessName} setBusinessName={setBusinessName}
-            accentColor={accentColor} setAccentColor={setAccentColor}
+            themeId={themeId} setThemeId={setThemeId}
+            accentOverride={accentOverride} setAccentOverride={setAccentOverride}
+            theme={theme}
           />
         )}
         {view === "eventDetail" && selectedEvent && (
@@ -294,7 +328,7 @@ export default function App() {
 
       {view !== "home" && (
         <button style={styles.bottomBar} onClick={() => setView("home")}>
-          <HomeIcon size={16} color={accentColor} />
+          <HomeIcon size={16} color={theme.accent} />
           <span>Home</span>
         </button>
       )}
@@ -414,7 +448,7 @@ function Header({ view, title, currency, setCurrency, accentColor, onBack }) {
         <div style={styles.brand}><BookOpen size={18} color={accentColor} /></div>
       ) : (
         <button style={styles.iconBtn} onClick={onBack} aria-label="Back">
-          <ArrowLeft size={20} color="#F7F8F1" />
+          <ArrowLeft size={20} color="var(--header-text, #F7F8F1)" />
         </button>
       )}
       <div style={styles.headerTitle}>{title}</div>
@@ -1135,13 +1169,19 @@ function AddEvent({ onSave }) {
   );
 }
 
-function SettingsScreen({ businessName, setBusinessName, accentColor, setAccentColor }) {
+function SettingsScreen({ businessName, setBusinessName, themeId, setThemeId, accentOverride, setAccentOverride, theme }) {
   const [nameInput, setNameInput] = useState(businessName);
+  const [customHex, setCustomHex] = useState(accentOverride || theme.accent);
+
+  function applyCustom(hex) {
+    setCustomHex(hex);
+    setAccentOverride(hex);
+  }
 
   return (
     <div>
       <div style={styles.settingsSection}>
-        <div style={styles.settingsSectionTitle}><Store size={14} color="#4B5A4E" /> Business name</div>
+        <div style={styles.settingsSectionTitle}><Store size={14} color="var(--ink-soft)" /> Business name</div>
         <input
           type="text" value={nameInput}
           onChange={(e) => setNameInput(e.target.value)}
@@ -1153,18 +1193,55 @@ function SettingsScreen({ businessName, setBusinessName, accentColor, setAccentC
       </div>
 
       <div style={styles.settingsSection}>
-        <div style={styles.settingsSectionTitle}><Palette size={14} color="#4B5A4E" /> Accent color</div>
+        <div style={styles.settingsSectionTitle}><Palette size={14} color="var(--ink-soft)" /> Theme</div>
+        <div style={styles.themeGrid}>
+          {THEMES.map((t) => {
+            const active = themeId === t.id;
+            return (
+              <button
+                key={t.id} onClick={() => setThemeId(t.id)}
+                style={{ ...styles.themeTile, background: t.card, borderColor: active ? t.accent : t.border }}
+              >
+                <div style={styles.themeTilePreview}>
+                  <div style={{ ...styles.themeSwatchDot, background: t.header }} />
+                  <div style={{ ...styles.themeSwatchDot, background: t.accent }} />
+                  <div style={{ ...styles.themeSwatchDot, background: t.bg, border: `1px solid ${t.border}` }} />
+                </div>
+                <span style={{ fontSize: 11.5, fontWeight: 500, color: t.ink }}>{t.name}</span>
+                {active && <Check size={13} color={t.accent} style={{ position: "absolute", top: 8, right: 8 }} />}
+              </button>
+            );
+          })}
+        </div>
+        <div style={styles.catHint}>Sets your whole background, card, and text palette at once.</div>
+      </div>
+
+      <div style={styles.settingsSection}>
+        <div style={styles.settingsSectionTitle}><Palette size={14} color="var(--ink-soft)" /> Accent color</div>
         <div style={styles.swatchRow}>
-          {ACCENT_PRESETS.map((p) => (
+          {ACCENT_SWATCHES.map((p) => (
             <button
-              key={p.id} onClick={() => setAccentColor(p.hex)}
-              style={{ ...styles.swatch, background: p.hex, ...(accentColor === p.hex ? styles.swatchActive : {}) }}
+              key={p.id} onClick={() => applyCustom(p.hex)}
+              style={{ ...styles.swatch, background: p.hex, ...(theme.accent === p.hex ? styles.swatchActive : {}) }}
               aria-label={p.name}
               title={p.name}
             />
           ))}
+          <label style={styles.customSwatch} title="Custom color">
+            <input
+              type="color" value={customHex}
+              onChange={(e) => applyCustom(e.target.value)}
+              style={styles.customSwatchInput}
+            />
+            <Palette size={15} color="var(--ink-soft)" />
+          </label>
         </div>
-        <div style={styles.catHint}>Colors your Home screen and ledger accents. Sales, expenses, events and recipes keep their own colors so money in/out always reads the same way.</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+          {accentOverride && (
+            <button style={styles.resetAccentBtn} onClick={() => setAccentOverride(null)}>Reset to theme default</button>
+          )}
+        </div>
+        <div style={styles.catHint}>Colors your Home screen's Ledger tile, brand icon, and overhead bar. Sales, expenses, events and recipes keep their own colors so money in/out always reads the same way.</div>
       </div>
     </div>
   );
@@ -1190,94 +1267,101 @@ function ChipRow({ options, value, onChange, tone }) {
 }
 
 const styles = {
-  phone: { fontFamily: "'Inter', sans-serif", background: "#EEF0E4", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", overflow: "hidden" },
+  phone: { fontFamily: "'Inter', sans-serif", background: "var(--bg, #EEF0E4)", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", overflow: "hidden" },
   bootWrap: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 },
-  bootText: { fontSize: 13, color: "#6B7368" },
+  bootText: { fontSize: 13, color: "var(--ink-soft, #6B7368)" },
   onboardWrap: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 28px", textAlign: "center" },
-  brandLarge: { width: 56, height: 56, borderRadius: 14, background: "#1F2A24", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  onboardTitle: { fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, color: "#1F2A24", marginBottom: 8 },
-  onboardSub: { fontSize: 13, color: "#6B7368", lineHeight: 1.5, maxWidth: 280 },
-  onboardLink: { background: "transparent", border: "none", color: "#8A6A2F", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 10, padding: 8 },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(16px + env(safe-area-inset-top)) 16px 14px", background: "#1F2A24", flexShrink: 0 },
-  brand: { width: 32, height: 32, borderRadius: 8, background: "#2A3830", display: "flex", alignItems: "center", justifyContent: "center" },
+  brandLarge: { width: 56, height: 56, borderRadius: 14, background: "var(--header-bg, #1F2A24)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  onboardTitle: { fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, color: "var(--ink, #1F2A24)", marginBottom: 8 },
+  onboardSub: { fontSize: 13, color: "var(--ink-soft, #6B7368)", lineHeight: 1.5, maxWidth: 280 },
+  onboardLink: { background: "transparent", border: "none", color: "var(--accent-dark, #8A6A2F)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 10, padding: 8 },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(16px + env(safe-area-inset-top)) 16px 14px", background: "var(--header-bg, #1F2A24)", flexShrink: 0 },
+  brand: { width: 32, height: 32, borderRadius: 8, background: "var(--header-chip, #2A3830)", display: "flex", alignItems: "center", justifyContent: "center" },
   iconBtn: { width: 32, height: 32, borderRadius: 8, background: "transparent", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
-  headerTitle: { fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#F7F8F1", letterSpacing: 0.2 },
-  currencySelect: { background: "#2A3830", color: "#F7F8F1", border: "1px solid #3C4A3F", borderRadius: 8, padding: "6px 8px", fontSize: 16, fontFamily: "'IBM Plex Mono', monospace" },
+  headerTitle: { fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "var(--header-text, #F7F8F1)", letterSpacing: 0.2 },
+  currencySelect: { background: "var(--header-chip, #2A3830)", color: "var(--header-text, #F7F8F1)", border: "1px solid var(--header-chip-border, #3C4A3F)", borderRadius: 8, padding: "6px 8px", fontSize: 16, fontFamily: "'IBM Plex Mono', monospace" },
   body: { flex: 1, minHeight: 0, padding: "16px 16px 24px", overflowY: "auto" },
-  bottomBar: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", flexShrink: 0, background: "#F7F8F1", border: "none", borderTop: "1px solid #D9DCC9", color: "#8A6A2F", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "12px 0 calc(12px + env(safe-area-inset-bottom))" },
+  bottomBar: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", flexShrink: 0, background: "var(--card, #F7F8F1)", border: "none", borderTop: "1px solid var(--border, #D9DCC9)", color: "var(--accent-dark, #8A6A2F)", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "12px 0 calc(12px + env(safe-area-inset-bottom))" },
   homeIntro: { marginBottom: 22, textAlign: "center" },
-  businessNameHeading: { fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "#1F2A24", textAlign: "center", marginBottom: 14 },
-  homeIntroLabel: { fontSize: 12, color: "#8B8B7F", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
+  businessNameHeading: { fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "var(--ink, #1F2A24)", textAlign: "center", marginBottom: 14 },
+  homeIntroLabel: { fontSize: 12, color: "var(--ink-faint, #8B8B7F)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
   homeIntroAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 30, fontWeight: 600 },
   homeGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "22px 10px" },
   tile: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: 0 },
   tileIconWrap: { position: "relative" },
   tileIconBadge: { width: 60, height: 60, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 2px rgba(31,42,36,0.12)" },
-  tileDot: { position: "absolute", top: -3, right: -3, width: 12, height: 12, borderRadius: 6, background: "#A13D2E", border: "2px solid #EEF0E4" },
-  tileCount: { position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, background: "#1F2A24", color: "#F7F8F1", fontSize: 10.5, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", border: "2px solid #EEF0E4" },
-  tileLabel: { fontSize: 12.5, fontWeight: 500, color: "#1F2A24" },
-  accountRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 26, padding: "10px 4px", borderTop: "1px solid #D9DCC9" },
-  accountEmail: { fontSize: 11.5, color: "#8B8B7F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  tileDot: { position: "absolute", top: -3, right: -3, width: 12, height: 12, borderRadius: 6, background: "#A13D2E", border: "2px solid var(--bg, #EEF0E4)" },
+  tileCount: { position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, background: "var(--ink, #1F2A24)", color: "var(--card, #F7F8F1)", fontSize: 10.5, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", border: "2px solid var(--bg, #EEF0E4)" },
+  tileLabel: { fontSize: 12.5, fontWeight: 500, color: "var(--ink, #1F2A24)" },
+  accountRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 26, padding: "10px 4px", borderTop: "1px solid var(--border, #D9DCC9)" },
+  accountEmail: { fontSize: 11.5, color: "var(--ink-faint, #8B8B7F)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   signOutBtn: { display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "#A13D2E", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, padding: 4 },
-  methodToggle: { display: "flex", gap: 6, marginTop: 24, background: "#F7F8F1", border: "1px solid #D9DCC9", borderRadius: 10, padding: 3, width: "100%" },
-  methodBtn: { flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: "transparent", color: "#6B7368", fontSize: 12.5, fontWeight: 600, cursor: "pointer" },
-  methodBtnActive: { background: "#1F2A24", color: "#F7F8F1" },
+  methodToggle: { display: "flex", gap: 6, marginTop: 24, background: "var(--card, #F7F8F1)", border: "1px solid var(--border, #D9DCC9)", borderRadius: 10, padding: 3, width: "100%" },
+  methodBtn: { flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: "transparent", color: "var(--ink-soft, #6B7368)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" },
+  methodBtnActive: { background: "var(--ink, #1F2A24)", color: "var(--card, #F7F8F1)" },
   inputIcon: { position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" },
   infoText: { fontSize: 12, color: "#2F6B4F", marginTop: 5, marginBottom: 8 },
   tapeWrap: { marginBottom: 16 },
-  tape: { background: "#FBFAF3", border: "1px solid #D9DCC9", padding: "16px 18px" },
-  tapeZigTop: { height: 8, background: "linear-gradient(135deg, transparent 50%, #EEF0E4 50%) 0 0/10px 10px, linear-gradient(-135deg, transparent 50%, #EEF0E4 50%) 0 0/10px 10px", backgroundColor: "#FBFAF3" },
-  tapeZigBottom: { height: 8, background: "linear-gradient(45deg, transparent 50%, #EEF0E4 50%) 0 100%/10px 10px, linear-gradient(-45deg, transparent 50%, #EEF0E4 50%) 0 100%/10px 10px", backgroundColor: "#FBFAF3", backgroundRepeat: "repeat-x" },
+  tape: { background: "var(--tape, #FBFAF3)", border: "1px solid var(--border, #D9DCC9)", padding: "16px 18px" },
+  tapeZigTop: { height: 8, background: "linear-gradient(135deg, transparent 50%, var(--bg, #EEF0E4) 50%) 0 0/10px 10px, linear-gradient(-135deg, transparent 50%, var(--bg, #EEF0E4) 50%) 0 0/10px 10px", backgroundColor: "var(--tape, #FBFAF3)" },
+  tapeZigBottom: { height: 8, background: "linear-gradient(45deg, transparent 50%, var(--bg, #EEF0E4) 50%) 0 100%/10px 10px, linear-gradient(-45deg, transparent 50%, var(--bg, #EEF0E4) 50%) 0 100%/10px 10px", backgroundColor: "var(--tape, #FBFAF3)", backgroundRepeat: "repeat-x" },
   tapeRow: { display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "6px 0" },
-  tapeLabel: { fontSize: 12.5, color: "#6B7368", letterSpacing: 0.3, textTransform: "uppercase" },
+  tapeLabel: { fontSize: 12.5, color: "var(--ink-soft, #6B7368)", letterSpacing: 0.3, textTransform: "uppercase" },
   tapeAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, fontWeight: 600 },
   tapeDivider: { borderTop: "1px dashed #C9CDB8", margin: "6px 0" },
   alertBanner: { display: "flex", alignItems: "center", gap: 7, width: "100%", background: "#FAEEDA", border: "1px solid #E8C98A", borderRadius: 10, padding: "9px 12px", marginBottom: 16, fontSize: 12.5, color: "#8A5A12", fontWeight: 500, cursor: "pointer" },
   rowBtnPair: { display: "flex", gap: 10 },
   quickBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 8px", borderRadius: 10, border: "1px solid", cursor: "pointer", fontSize: 13 },
-  sectionLabel: { fontFamily: "'Fraunces', serif", fontSize: 13.5, fontWeight: 600, color: "#4B5A4E", textTransform: "uppercase", letterSpacing: 0.6, margin: "4px 0 8px" },
-  card: { background: "#F7F8F1", border: "1px solid #D9DCC9", borderRadius: 12, marginBottom: 20, overflow: "hidden" },
-  catRow: { display: "flex", gap: 10, alignItems: "center", padding: "11px 14px", borderBottom: "1px solid #E4E6D8" },
-  catIconWrap: { width: 28, height: 28, borderRadius: 7, background: "#EEF0E4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  sectionLabel: { fontFamily: "'Fraunces', serif", fontSize: 13.5, fontWeight: 600, color: "var(--ink-soft, #4B5A4E)", textTransform: "uppercase", letterSpacing: 0.6, margin: "4px 0 8px" },
+  card: { background: "var(--card, #F7F8F1)", border: "1px solid var(--border, #D9DCC9)", borderRadius: 12, marginBottom: 20, overflow: "hidden" },
+  catRow: { display: "flex", gap: 10, alignItems: "center", padding: "11px 14px", borderBottom: "1px solid var(--border-soft, #E4E6D8)" },
+  catIconWrap: { width: 28, height: 28, borderRadius: 7, background: "var(--bg, #EEF0E4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   catTopLine: { display: "flex", justifyContent: "space-between", marginBottom: 5 },
-  catLabel: { fontSize: 13, color: "#1F2A24", fontWeight: 500 },
-  catAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "#1F2A24", fontWeight: 600 },
-  barTrack: { height: 5, background: "#E4E6D8", borderRadius: 3, overflow: "hidden" },
-  barFill: { height: "100%", background: "#B08D57", borderRadius: 3 },
-  txnRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: "1px solid #E4E6D8" },
-  invRow: { display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid #E4E6D8" },
-  eventRow: { display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: "1px solid #E4E6D8", background: "transparent", border: "none", width: "100%", cursor: "pointer" },
+  catLabel: { fontSize: 13, color: "var(--ink, #1F2A24)", fontWeight: 500 },
+  catAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--ink, #1F2A24)", fontWeight: 600 },
+  barTrack: { height: 5, background: "var(--border-soft, #E4E6D8)", borderRadius: 3, overflow: "hidden" },
+  barFill: { height: "100%", background: "var(--accent, #B08D57)", borderRadius: 3 },
+  txnRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: "1px solid var(--border-soft, #E4E6D8)" },
+  invRow: { display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border-soft, #E4E6D8)" },
+  eventRow: { display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: "1px solid var(--border-soft, #E4E6D8)", background: "transparent", border: "none", width: "100%", cursor: "pointer" },
   txnIconWrap: { width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  txnDesc: { fontSize: 13, color: "#1F2A24", fontWeight: 500 },
-  txnMeta: { fontSize: 11.5, color: "#8B8B7F", marginTop: 1 },
+  txnDesc: { fontSize: 13, color: "var(--ink, #1F2A24)", fontWeight: 500 },
+  txnMeta: { fontSize: 11.5, color: "var(--ink-faint, #8B8B7F)", marginTop: 1 },
   txnAmount: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
   deleteBtn: { background: "transparent", border: "none", cursor: "pointer", padding: 4, marginLeft: 2 },
-  stockBtn: { width: 24, height: 24, borderRadius: 6, border: "1px solid #D9DCC9", background: "#F7F8F1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
-  adjustPanel: { padding: "10px 14px 14px", borderBottom: "1px solid #E4E6D8", background: "#F2F3E9" },
-  cancelBtn: { border: "1px solid #D9DCC9", background: "transparent", color: "#6B7368", borderRadius: 9, fontSize: 12.5, padding: "0 12px", cursor: "pointer" },
-  emptyNote: { fontSize: 12.5, color: "#8B8B7F", background: "#F7F8F1", border: "1px dashed #D9DCC9", borderRadius: 10, padding: "14px 16px", marginBottom: 20, lineHeight: 1.5 },
+  stockBtn: { width: 24, height: 24, borderRadius: 6, border: "1px solid var(--border, #D9DCC9)", background: "var(--card, #F7F8F1)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
+  adjustPanel: { padding: "10px 14px 14px", borderBottom: "1px solid var(--border-soft, #E4E6D8)", background: "var(--border-soft, #E4E6D8)" },
+  cancelBtn: { border: "1px solid var(--border, #D9DCC9)", background: "transparent", color: "var(--ink-soft, #6B7368)", borderRadius: 9, fontSize: 12.5, padding: "0 12px", cursor: "pointer" },
+  emptyNote: { fontSize: 12.5, color: "var(--ink-faint, #8B8B7F)", background: "var(--card, #F7F8F1)", border: "1px dashed var(--border, #D9DCC9)", borderRadius: 10, padding: "14px 16px", marginBottom: 20, lineHeight: 1.5 },
   field: { marginBottom: 16 },
-  fieldLabel: { fontSize: 12.5, color: "#4B5A4E", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
-  input: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid #D9DCC9", background: "#F7F8F1", fontSize: 16, color: "#1F2A24", fontFamily: "'Inter', sans-serif" },
-  amountInput: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid #D9DCC9", background: "#F7F8F1", fontSize: 16, color: "#1F2A24", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 },
+  fieldLabel: { fontSize: 12.5, color: "var(--ink-soft, #4B5A4E)", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  input: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border, #D9DCC9)", background: "var(--card, #F7F8F1)", fontSize: 16, color: "var(--ink, #1F2A24)", fontFamily: "'Inter', sans-serif" },
+  amountInput: { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border, #D9DCC9)", background: "var(--card, #F7F8F1)", fontSize: 16, color: "var(--ink, #1F2A24)", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 },
   errorText: { fontSize: 12, color: "#A13D2E", marginTop: 5, marginBottom: 8 },
   chipRow: { display: "flex", flexWrap: "wrap", gap: 8 },
   chip: { padding: "7px 13px", borderRadius: 20, border: "1px solid", fontSize: 12.5, fontWeight: 500, cursor: "pointer" },
   catGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
   catTile: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, padding: "10px 10px", borderRadius: 10, border: "1px solid", cursor: "pointer", fontSize: 11.5, fontWeight: 500, textAlign: "left", lineHeight: 1.25 },
-  catHint: { fontSize: 12, color: "#6B7368", marginTop: 8, fontStyle: "italic" },
+  catHint: { fontSize: 12, color: "var(--ink-soft, #6B7368)", marginTop: 8, fontStyle: "italic" },
   saveBtn: { width: "100%", padding: "13px 0", borderRadius: 10, border: "none", color: "#FBFAF3", fontSize: 14.5, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: 20 },
-  deleteEventBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "transparent", border: "1px dashed #D9DCC9", color: "#A13D2E", borderRadius: 10, padding: "10px 0", fontSize: 12.5, fontWeight: 500, cursor: "pointer", marginBottom: 8 },
-  recipeRow: { padding: "11px 14px", borderBottom: "1px solid #E4E6D8" },
+  deleteEventBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "transparent", border: "1px dashed var(--border, #D9DCC9)", color: "#A13D2E", borderRadius: 10, padding: "10px 0", fontSize: 12.5, fontWeight: 500, cursor: "pointer", marginBottom: 8 },
+  recipeRow: { padding: "11px 14px", borderBottom: "1px solid var(--border-soft, #E4E6D8)" },
   recipeTop: { display: "flex", gap: 10, alignItems: "center" },
-  suggestionNote: { display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "#6B7368", marginTop: 8, marginLeft: 38 },
+  suggestionNote: { display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--ink-soft, #6B7368)", marginTop: 8, marginLeft: 38 },
   suggestionNoteLow: { color: "#8A5A12", fontWeight: 500 },
   recipeLine: { display: "flex", gap: 8, marginBottom: 8, alignItems: "center" },
-  removeLineBtn: { width: 32, height: 40, borderRadius: 8, border: "1px solid #D9DCC9", background: "#F7F8F1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
+  removeLineBtn: { width: 32, height: 40, borderRadius: 8, border: "1px solid var(--border, #D9DCC9)", background: "var(--card, #F7F8F1)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
   addLineBtn: { display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "#8A5A9E", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "6px 0 4px" },
   settingsSection: { marginBottom: 26 },
-  settingsSectionTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "#1F2A24", marginBottom: 10 },
+  settingsSectionTitle: { display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "var(--ink, #1F2A24)", marginBottom: 10 },
   swatchRow: { display: "flex", gap: 10, flexWrap: "wrap" },
   swatch: { width: 38, height: 38, borderRadius: 10, border: "2px solid transparent", cursor: "pointer" },
-  swatchActive: { border: "2px solid #1F2A24", boxShadow: "0 0 0 2px #FBFAF3 inset" },
+  swatchActive: { border: "2px solid var(--ink, #1F2A24)", boxShadow: "0 0 0 2px var(--header-text, #F7F8F1) inset" },
+  customSwatch: { width: 38, height: 38, borderRadius: 10, border: "2px dashed var(--border, #D9DCC9)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative", overflow: "hidden" },
+  customSwatchInput: { position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" },
+  resetAccentBtn: { background: "transparent", border: "none", color: "var(--accent, #B08D57)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 },
+  themeGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
+  themeTile: { position: "relative", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, padding: "10px 10px", borderRadius: 12, border: "2px solid", cursor: "pointer" },
+  themeTilePreview: { display: "flex", gap: 4 },
+  themeSwatchDot: { width: 14, height: 14, borderRadius: 7 },
 };
